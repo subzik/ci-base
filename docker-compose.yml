@@ -1,0 +1,72 @@
+version: '3'
+services:
+    jenkins:
+      hostname: jenkins
+      build:
+        context: .
+        dockerfile: ./docker_files/dockerfile_autojenkins
+      image: "pramanouski/jenkins:version1"
+      container_name: jenkins
+      networks:
+        ci_cd_net:
+          ipv4_address: 172.30.0.2
+      extra_hosts:
+        - "sonarqube:172.30.0.10"
+        - "slave:172.30.0.100"
+        - "artifactory:172.30.0.200"        
+      ports:
+      - "8080:8080"
+      - "50000:50000"
+      environment:
+       - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    slave:
+      build:
+        context: .
+        dockerfile: ./docker_files/dockerfile_autoagent
+      image: pramanouski/agent:version1
+      hostname: slave
+      container_name: slave
+      networks:
+        ci_cd_net:
+          ipv4_address: 172.30.0.100
+      extra_hosts:
+        - "sonarqube:172.30.0.10"
+        - "jenkins:172.30.0.2"
+        - "artifactory:172.30.0.200"        
+      ports:
+      - "22:22"
+    sonarqube:
+      build:
+        context: .
+        dockerfile: ./docker_files/dockerfile_autosonarqube
+      image: pramanouski/sonarqube:version1      
+      hostname: sonarqube
+      container_name: sonarqube
+      networks:
+        ci_cd_net:
+          ipv4_address: 172.30.0.10
+      extra_hosts:
+        - "jenkins:172.30.0.2" 
+        - "slave:172.30.0.100"  
+        - "artifactory:172.30.0.200"
+      ports:
+      - "9000:9000"
+    artifactory:
+      hostname: artifactory
+      image: "docker.bintray.io/jfrog/artifactory-oss:latest"
+      container_name: autoartifactory
+      networks:
+        ci_cd_net:
+          ipv4_address: 172.30.0.200
+      extra_hosts:
+        - "sonarqube:172.30.0.10"      
+        - "jenkins:172.30.0.2" 
+        - "slave:172.30.0.200"        
+      ports:
+      - "8081:8081"      
+networks:
+  ci_cd_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.30.0.0/24"

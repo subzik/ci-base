@@ -1,0 +1,65 @@
+version: '3'
+services:
+    jenkins:
+      hostname: jenkins
+      image: "jenkins/jenkins:lts"
+      container_name: autojenkins
+      networks:
+        test1_network:
+          ipv4_address: 172.30.0.2
+      extra_hosts:
+        - "sonarqube:172.30.0.10"
+        - "agent:172.30.0.100"
+        - "artifactory:172.30.0.200"        
+      ports:
+      - "8080:8080"
+      - "50000:50000"
+      environment:
+       - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+    agent:
+      hostname: agent
+      image: "jenkinsci/ssh-slave"
+      container_name: autoagent
+      networks:
+        test1_network:
+          ipv4_address: 172.30.0.100
+      extra_hosts:
+        - "sonarqube:172.30.0.10"
+        - "jenkins:172.30.0.2"
+        - "artifactory:172.30.0.200"        
+      ports:
+      - "22:22"
+      environment:
+        - JENKINS_SLAVE_SSH_PUBKEY=ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC549CoYtIW+XXQ3NGqtNKGYYETwENxjBzvcpvVobCDBXu2kIq8YTisDFhlTRSyV4rd662G78+yLBlA9JZE/gFpYYT5gOFqmdux+WGiXn4fhcr1i6l0Q/zdu2ISXB6LhwrYBGshlEwvOTzNOsrJu2icZBb7ZT6iDmOlGBTmrlzBSmDBtXs3xXNDK+Z5/PGGcX7YBIbvjHD4jy8yaNlUXcW9Asr1e5C1+nm/cDhLHy7q9cHuf2blNtP2WR2v5MDMfJDZX5C963fjNytB+5Qn7IUM/rtvaUArsnm5PzU3izshKdTaNXQmBWs+vWpJ5QvULzGf8f216gSBBR42fijKPGsn Uladzimir_Amelyanovich@epam.com
+    sonarqube:
+      hostname: sonarqube
+      image: "sonarqube"
+      container_name: autosonarqube
+      networks:
+        test1_network:
+          ipv4_address: 172.30.0.10
+      extra_hosts:
+        - "jenkins:172.30.0.2" 
+        - "agent:172.30.0.100"  
+        - "artifactory:172.30.0.200"
+      ports:
+      - "9000:9000"
+    artifactory:
+      hostname: artifactory
+      image: "docker.bintray.io/jfrog/artifactory-oss:latest"
+      container_name: autoartifactory
+      networks:
+        test1_network:
+          ipv4_address: 172.30.0.200
+      extra_hosts:
+        - "sonarqube:172.30.0.10"      
+        - "jenkins:172.30.0.2" 
+        - "agent:172.30.0.200"        
+      ports:
+      - "8081:8081"      
+networks:
+  test1_network:
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.30.0.0/24"

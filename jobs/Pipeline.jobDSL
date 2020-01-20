@@ -1,0 +1,21 @@
+def projectname = 'curl'
+pipelineJob("${projectname}") {
+	description()
+	keepDependencies(false)
+	definition {
+		cpsScm {
+			scm {
+				git {
+					remote {
+						github("subzik/${projectname}", "https")
+					}
+					branch("*/master")
+				}
+			}
+			scriptPath("Jenkinsfile")
+		}
+	}
+
+	disabled(false)
+}
+	queue("${projectname}")

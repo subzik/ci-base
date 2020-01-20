@@ -1,0 +1,4 @@
+FROM jenkins/jenkins:lts
+COPY ./groovy_scripts /var/jenkins_home/groovy_scripts
+COPY ./seed.xml /var/jenkins_home/seed.xml
+COPY ./script.sh /var/jenkins_home/script.sh
