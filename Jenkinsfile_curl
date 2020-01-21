@@ -1,0 +1,74 @@
+pipeline { 
+    agent any   
+    stages {
+        stage("SCM") {
+            steps { 
+                  checkout scm: [$class: 'GitSCM',
+                       branches: [[name: 'master']],
+                       userRemoteConfigs: [[url: 'https://github.com/curl/curl.git']],
+                       extensions: [[$class: 'CloneOption', timeout: 120]]
+                      ]
+            }//steps
+        }//stage
+        stage("SonarQube analysis") {
+            environment {
+            scannerHome = tool 'sonarqube_scanner'
+            }
+            steps { 
+                    withSonarQubeEnv('sonarqube_scanner') {
+                             sh "${scannerHome}/bin/sonar-scanner -X  -Dsonar.host.url=http://sonarqube:9000  -Dsonar.language=c++ -Dsonar.projectName=curl -Dsonar.lang.patterns.c++=**/*.cxx,**/*.cpp,**/*.cc,**/*.c,**/*.hxx,**/*.hpp,**/*.hh,**/*.h -Dsonar.projectVersion=1.1 -Dsonar.projectKey=curl_project   -Dsonar.sources=src -Dsonar.tests=. -Dsonar.test.inclusions=**/*Test*/** -Dsonar.exclusions=**/*Test*/**"
+                }
+            }
+        }
+        stage('Sonarqube Quality Gates.') {
+            options {
+                timeout(time: 5, unit: 'MINUTES') 
+            }
+            steps{
+                sh 'curl "http://admin:admin@sonarqube:9000/api/webhooks/create" -X POST -d "name=jenkins_curl&url=http://jenkins:8080/sonarqube-webhook/"' 
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    script {
+                        def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv
+                            if (qg.status != 'OK') {
+                                 error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                            }  
+                        }
+                    }
+            }
+        }
+        stage('Build C++ code'){
+                steps { 
+                    sh './buildconf && ./configure --enable-debug --enable-werror && make'
+                    sh 'cppcheck --enable=information --xml --xml-version=2 src 2> cppcheck.xml'
+                }//steps
+                post {
+                    always {
+                    archiveArtifacts artifacts: 'src/.libs/curl', fingerprint: true
+                    sh 'build_date=$(date +%H%M-%d%m%Y);zip curl_$build_date.zip src/.libs/curl -x curl_$build_date.zip'
+                    }
+                }//post
+            }//stage
+        stage("Uniti test") { 
+            steps { 
+                sh './configure && make && make test'
+                publishCppcheck pattern:'cppcheck.xml'
+                }//staps
+            }//stage
+        stage('Atrifactory'){
+	        steps {
+	            script {
+                    def server = Artifactory.server 'artifactory'
+                    def uploadSpec = """{
+                        "files": [
+                            {
+                                "pattern": "*.zip",
+                                "target": "example-repo-local/curl"
+                            }
+                        ]
+                    }"""
+                    server.upload spec: uploadSpec, failNoOp: true
+                }
+	        }
+        }//stage
+    }//stages
+}//pipiline
